@@ -53,6 +53,9 @@ The main simulation can be executed using:
 ```bash
 python main.py --taskset examples/taskset-0.csv
 ```
+### Note
+Because the hyperperiod of the task set is extremely large, the simulation runs for a bounded horizon proportional to the maximum deadline.
+Jobs whose deadlines occur after the simulation horizon are not considered when computing deadline misses.
 
 ---
 ## Repo structure
