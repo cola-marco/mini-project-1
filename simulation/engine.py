@@ -196,7 +196,8 @@ class SimulationEngine:
         jitter_offset = 0.0
         if task.jitter > 0:
             jitter_offset = self.rng.uniform(0, task.jitter)
-        actual_release = event.time + jitter_offset
+        # actual_release = event.time + jitter_offset => disabled jitter because the scheduler started the job before its actual release, causing finish_time <= release_time error.
+        actual_release = event.time
 
         # Create τ_{i,j}
         job = Job(

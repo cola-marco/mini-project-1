@@ -21,6 +21,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from models.scheduling.taskset import TaskSet
 from simulation.engine import SimulationEngine
 
+from analysis.plots import (
+    plot_response_times,
+    plot_deadline_misses,
+    plot_gantt_chart,
+)
+
 # TODO: Code the analysis
 # from analysis.dm_analysis import (
 #     perform_dm_analysis,
@@ -192,15 +198,53 @@ def main():
 
     # ── 3. Simulation ──
     mode = "WCET" if args.use_wcet else f"random (seed={args.seed})"
+    
+    # ---
+    # NOTE:
+    # We previously used run_simulation(), which internally created the engine and returned only aggregated statistics.
+    #
+    # However, for plotting we need access to internal simulation data such as: "engine.schedule_trace"
+    #
+    # Therefore we instantiate the SimulationEngine directly here so we can access both:
+    # - aggregated statistics (get_statistics())
+    # - detailed execution trace (schedule_trace)
+    # ---
 
+    # The hyperperiod of this task set is astronomically large due to the least common multiple of many relatively prime periods.
+    # Simulating the full hyperperiod is infeasible, therefore we simulate a bounded time horizon proportional to the largest deadline.
+    duration = 10 * taskset.D_max
+    
+    # We run two simulations:
+    # 1. Deadline Monotonic
+    # 2. Earliest Deadline First
+    # Each engine produces:
+    # - aggregated per-task statistics
+    # - a schedule trace used for visualization
+    
     header(f"SIMULATION — DM ({mode})")
-    dm_sim = run_simulation(taskset, "DM", args.replications, args.seed, args.use_wcet)
-
-    header(f"SIMULATION — EDF ({mode})")
-    edf_sim = run_simulation(
-        taskset, "EDF", args.replications, args.seed, args.use_wcet
+    engine_dm = SimulationEngine(
+        taskset=taskset,
+        algorithm="DM",
+        seed=args.seed,
+        use_wcet=args.use_wcet,
     )
 
+    engine_dm.run(duration=duration)
+    dm_sim = engine_dm.get_statistics()
+
+
+    header(f"SIMULATION — EDF ({mode})")
+
+    engine_edf = SimulationEngine(
+        taskset=taskset,
+        algorithm="EDF",
+        seed=args.seed,
+        use_wcet=args.use_wcet,
+    )
+
+    engine_edf.run(duration=duration)
+    edf_sim = engine_edf.get_statistics()
+    
     # ── 4. Quick Comparison ──
     header("COMPARISON — DM vs EDF (max R_i)")
 
@@ -212,8 +256,8 @@ def main():
 
     for tid in sorted(dm_sim):
         t = taskset.get_task(tid)
-        dm_r = dm_sim[tid]["max_R_i"]
-        edf_r = edf_sim[tid]["max_R_i"]
+        dm_r = dm_sim[tid]["R_i"]   # R_i in engine.get_statistics() is already defined as WCRT, before, with run_simulation() we had max_R_i
+        edf_r = edf_sim[tid]["R_i"]
 
         if dm_r < edf_r:
             winner = f"{CYAN}DM{RESET}"
@@ -233,6 +277,15 @@ def main():
     # TODO: 4. Full Comparison with analytical
     # run_comparison(taskset, dm_analytical, dm_sim, edf_sim)
 
+    # --- 5. Plots ---
+    header("GENERATED PLOTS")
+    
+    plot_response_times(taskset, dm_sim, edf_sim)
+    plot_deadline_misses(dm_sim, edf_sim)
+    
+    plot_gantt_chart(engine_dm.schedule_trace, "DM Schedule")
+    plot_gantt_chart(engine_edf.schedule_trace, "EDF Schedule")
+    
     print()
 
 

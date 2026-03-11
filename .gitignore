@@ -89,3 +89,6 @@ secrets.json
 # Logs
 *.log
 logs/
+
+# Figures
+# figures/ uncomment after PR
