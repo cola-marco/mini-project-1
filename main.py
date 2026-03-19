@@ -4,12 +4,18 @@ main.py
 02225 DRTS — Mini-Project 1
 Entry point: loads task set, runs DM/EDF simulations, prints results.
 
+Supports:
+1) single taskset simulation
+2) full dataset batch analysis (--batch)
+
 Run:
     python main.py --taskset path/to/taskset.csv
     python main.py --taskset path/to/taskset.csv --use-wcet
     python main.py --taskset path/to/taskset.csv --replications 5 --seed 42
+    
+    python main.py --batch --use-wcet
 
-@Author: Alejandro Garcia Bejarano + AI Generated Assistance
+@Author: Alejandro Garcia Bejarano + AI Generated Assistance, Marco Cola
 """
 
 import argparse
@@ -20,6 +26,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from models.scheduling.taskset import TaskSet
 from simulation.engine import SimulationEngine
+
+from analysis.batch_runner import run_batch
+from analysis.global_plots import(
+    plot_global_response_times,
+    plot_miss_distribution,
+    plot_response_vs_deadline,
+    plot_wcrt_distribution,
+)
 
 from analysis.plots import (
     plot_response_times,
@@ -148,22 +162,56 @@ def run_simulation(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="02225 DRTS — Mini-Project 1")
-    parser.add_argument("--taskset", required=True, help="Path to task set CSV")
+    parser = argparse.ArgumentParser(description="02225 DRTS - Mini-Project 1")
+    
+    # taskset no longer required
+    parser.add_argument("--taskset", help="Path to task set CSV")
+    
     parser.add_argument(
         "--replications",
         type=int,
         default=1,
         help="Number of simulation replications",
     )
+    
     parser.add_argument("--seed", type=int, default=42, help="Base random seed")
+    
     parser.add_argument(
         "--use-wcet",
         action="store_true",
         help="Always use WCET (no randomness, for validation)",
     )
+    
+    parser.add_argument(
+        "--batch",
+        action="store_true",
+        help="Run full dataset analysis over /output",
+    )
+    
     args = parser.parse_args()
+    
+    if not args.batch and not args.taskset:
+        parser.error("Either --taskset or --batch must be provided")
+        
+    # BATCH MODE
+    if args.batch:
+        header("RUNNING FULL DATASET ANALYSIS")
+        
+        results = run_batch("output", use_wcet=args.use_wcet, seed=args.seed)
+        
+        header("GENERATING GLOBAL PLOTS")
+        
+        # global plots
+        plot_global_response_times(results)
+        plot_wcrt_distribution(results)
+        plot_miss_distribution(results)
+        plot_response_vs_deadline(results)
+        
+        return
 
+    print("\nDone.")
+
+    # SINGLE TASKSET MODE
     # ── 1. Load Γ ──
     header(f"LOADING TASK SET — {Path(args.taskset).name}")
 
